@@ -47,6 +47,13 @@ namespace fs = boost::filesystem;
 
 #define ETH_TIMED_IMPORTS 1
 
+namespace
+{
+
+ldb::Slice const c_sliceChainStart{"chainStart"};
+
+}
+
 #if defined(_WIN32)
 const char* BlockChainDebug::name() { return EthBlue "8" EthWhite " <>"; }
 const char* BlockChainWarn::name() { return EthBlue "8" EthOnRed EthBlackBold " X"; }
@@ -1531,4 +1538,23 @@ VerifiedBlockRef BlockChain::verifyBlock(bytesConstRef _block, std::function<voi
 		}
 	res.block = bytesConstRef(_block);
 	return res;
+}
+
+void BlockChain::setChainStartBlock(h256 const& _hash)
+{
+	if (!isKnown(_hash))
+		BOOST_THROW_EXCEPTION(UnknownBlockHash());
+
+	ldb::Status const status = m_extrasDB->Put(m_writeOptions, c_sliceChainStart, ldb::Slice(reinterpret_cast<char const*>(_hash.data()), h256::size));
+	if (!status.ok())
+	{
+		BOOST_THROW_EXCEPTION(FailedToWriteChainStart() << errinfo_hash256(_hash));
+	}
+}
+
+unsigned BlockChain::chainStartBlockNumber() const
+{
+	std::string value;
+	m_extrasDB->Get(m_readOptions, c_sliceChainStart, &value);
+	return value.empty() ? 0 : number(h256(value, h256::FromBinary));
 }
